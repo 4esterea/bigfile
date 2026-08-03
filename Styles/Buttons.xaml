@@ -1,0 +1,19 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <!--
+        Reusable style for a button with the icon stacked above the label.
+        Only sizing/alignment lives here; each button supplies its own
+        icon + text as Content.
+    -->
+    <Style x:Key="VerticalIconButton" TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Setter Property="Width" Value="130" />
+        <Setter Property="Height" Value="90" />
+        <Setter Property="Margin" Value="8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center"  />
+    </Style>
+
+</ResourceDictionary>
