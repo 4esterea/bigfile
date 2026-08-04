@@ -31,3 +31,9 @@ C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-
 C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\build\Warhorse.runtimeconfig.json
 C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\build\Warhorse.dll
 C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\build\Warhorse.pdb
+d:\testdir\Warhorse\obj\Debug\net8.0-windows\Warhorse.sourcelink.json
+C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\gen\out\Warhorse.exe
+C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\gen\out\Warhorse.deps.json
+C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\gen\out\Warhorse.runtimeconfig.json
+C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\gen\out\Warhorse.dll
+C:\Users\4este\AppData\Local\Temp\claude\d--testdir-Warhorse\42039908-201c-43a7-b44b-7087c05cc04d\scratchpad\gen\out\Warhorse.pdb

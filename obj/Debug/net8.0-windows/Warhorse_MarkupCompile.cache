@@ -1,5 +1,5 @@
 ﻿Warhorse
-
+1.0.0.0
 
 winexe
 C#
@@ -12,9 +12,9 @@ TRACE;DEBUG;NET;NET8_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR
 D:\testdir\Warhorse\App.xaml
 2-1567681409
 
-7-595460201
+11-1932677969
 201812165994
 Styles\Buttons.xaml;Views\MainWindow.xaml;
 
-False
+True
 

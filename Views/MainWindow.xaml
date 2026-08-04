@@ -26,9 +26,9 @@
         <ui:TitleBar Grid.Row="0" Title="Text Reader" />
 
         <!-- Start screen: pick a text source -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal"
+        <StackPanel x:Name="StartButtons" Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    Visibility="{Binding ShowStartButtons, Converter={StaticResource BoolToVisibility}}">
             <ui:Button Style="{StaticResource VerticalIconButton}"
                        Command="{Binding OpenFileCommand}">
                 <StackPanel>
@@ -71,14 +71,92 @@
             <DockPanel Grid.Row="0" Margin="0,0,0,12">
                 <ui:Button DockPanel.Dock="Right" Icon="{ui:SymbolIcon Dismiss24}"
                            Content="Close" Command="{Binding CloseCommand}" />
+                <ui:TextBlock DockPanel.Dock="Right" Margin="0,0,12,0"
+                              Text="{Binding LineCount, StringFormat={}{0:N0} lines}"
+                              Appearance="Secondary" VerticalAlignment="Center" />
                 <ui:TextBlock Text="{Binding SourceName}" FontTypography="Subtitle"
                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             </DockPanel>
 
-            <ui:TextBox Grid.Row="1" Text="{Binding Text, Mode=OneWay}"
-                        IsReadOnly="True" AcceptsReturn="True"
-                        TextWrapping="Wrap" VerticalContentAlignment="Top"
-                        VerticalScrollBarVisibility="Auto" />
+            <!--
+                Item virtualization keeps only the visible lines realized, and the
+                bound list reads those lines from disk, so GUI memory is independent
+                of document size. Pixel scroll unit keeps dragging the scrollbar and
+                PgUp/PgDn smooth instead of snapping line by line.
+            -->
+            <ListBox Grid.Row="1" ItemsSource="{Binding Lines}"
+                     FontFamily="Consolas" FontSize="13"
+                     HorizontalContentAlignment="Stretch"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     VirtualizingPanel.CacheLength="1"
+                     VirtualizingPanel.CacheLengthUnit="Page"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Visible">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem"
+                           BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="Padding" Value="4,0" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Mode=OneTime}" TextWrapping="NoWrap" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
         </Grid>
+
+        <!-- Inline URL prompt -->
+        <Border Grid.Row="1" Background="#80000000"
+                Visibility="{Binding IsUrlPromptOpen, Converter={StaticResource BoolToVisibility}}">
+            <ui:Card Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <ui:TextBlock Text="Address of a text file or page"
+                                  FontTypography="BodyStrong" Margin="0,0,0,8" />
+
+                    <ui:TextBox x:Name="UrlTextBox"
+                                Text="{Binding UrlInput, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="https://example.com/text.txt"
+                                IsVisibleChanged="UrlTextBox_IsVisibleChanged">
+                        <ui:TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SubmitUrlCommand}" />
+                            <KeyBinding Key="Esc" Command="{Binding CancelUrlPromptCommand}" />
+                        </ui:TextBox.InputBindings>
+                    </ui:TextBox>
+
+                    <ui:TextBlock Text="Enter a valid http or https address."
+                                  Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                  Margin="0,8,0,0"
+                                  Visibility="{Binding HasUrlError, Converter={StaticResource BoolToVisibility}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                        <ui:Button Content="Open" Appearance="Primary" Width="90"
+                                   Command="{Binding SubmitUrlCommand}" />
+                        <ui:Button Content="Cancel" Width="90" Margin="8,0,0,0"
+                                   Command="{Binding CancelUrlPromptCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </ui:Card>
+        </Border>
+
+        <!-- Loading overlay -->
+        <Border Grid.Row="1" Background="#80000000"
+                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ui:ProgressRing Progress="{Binding ProgressPercent}"
+                                 HorizontalAlignment="Center" />
+                <ui:TextBlock Text="{Binding ProgressPercent, StringFormat={}Indexing… {0:N0}%}"
+                              Margin="0,12,0,0" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Border>
     </Grid>
 </ui:FluentWindow>
