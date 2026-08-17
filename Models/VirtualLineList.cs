@@ -1,9 +1,10 @@
 using System.Collections;
 
-namespace Warhorse.Models;
+namespace Bigfile.Models;
 
 /// <summary>
-/// Read-only <see cref="IList"/> over an <see cref="ITextDocument"/>.
+/// Read-only <see cref="IList"/> over an <see cref="ITextDocument"/>, either
+/// the whole text or a subset of its lines.
 ///
 /// WPF item virtualization only touches the indexer for realized items, so
 /// binding this to an ItemsControl keeps just the visible lines in memory.
@@ -14,12 +15,20 @@ public sealed class VirtualLineList : IList
 {
     private readonly ITextDocument _document;
 
-    public VirtualLineList(ITextDocument document)
+    /// <summary>
+    /// Document line behind each row, or null when the list is the whole
+    /// document. The filtered view stores four bytes per matching line, which
+    /// stays small next to the text it points at.
+    /// </summary>
+    private readonly int[]? _map;
+
+    public VirtualLineList(ITextDocument document, int[]? map = null)
     {
         _document = document;
+        _map = map;
     }
 
-    public int Count => _document.LineCount;
+    public int Count => _map?.Length ?? _document.LineCount;
 
     public bool IsFixedSize => true;
 
@@ -29,13 +38,22 @@ public sealed class VirtualLineList : IList
 
     public object SyncRoot { get; } = new();
 
-    public string this[int index] => _document.GetLine(index);
+    public string this[int index] => _document.GetLine(SourceLine(index));
 
     object? IList.this[int index]
     {
-        get => _document.GetLine(index);
+        get => this[index];
         set => throw new NotSupportedException();
     }
+
+    /// <summary>Maps a row back to its line in the document.</summary>
+    public int SourceLine(int index) => _map?[index] ?? index;
+
+    /// <summary>
+    /// The lines this view shows, in ascending order, or null when it shows the
+    /// whole document. Used to save a filtered view.
+    /// </summary>
+    public IReadOnlyList<int>? SourceLines => _map;
 
     public bool Contains(object? value) => IndexOf(value) >= 0;
 
@@ -48,7 +66,7 @@ public sealed class VirtualLineList : IList
     {
         for (var i = 0; i < Count; i++)
         {
-            yield return _document.GetLine(i);
+            yield return this[i];
         }
     }
 

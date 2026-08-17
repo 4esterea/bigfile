@@ -1,0 +1,226 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:b="clr-namespace:Bigfile.Behaviors">
+
+    <!--
+        Scrolling for the reader: bars that are part of the layout.
+
+        The Fluent default floats them over the content and fades them out when
+        the pointer leaves, which costs a reader twice — the bars cover the text
+        they scroll, and the horizontal one, the only clue that a line runs past
+        the right edge, is invisible almost always. The reader therefore scrolls
+        with the stock ScrollViewer, whose template already gives the bars their
+        own grid cells, and restyles the bars with the template below: the Fluent
+        ScrollBar keeps itself transparent until a DynamicScrollViewer tells it
+        otherwise, which a stock viewer never does.
+
+        Colours are written out rather than taken from theme resources because the
+        application pins the dark theme (App.xaml), and a translucent white reads
+        correctly over the reader's background at every opacity used here.
+    -->
+
+    <!-- Half the bar's thickness, so the track reads as a rounded pill. -->
+    <CornerRadius x:Key="ScrollTrackRadius">5</CornerRadius>
+    <CornerRadius x:Key="ScrollThumbRadius">3</CornerRadius>
+
+    <SolidColorBrush x:Key="ScrollTrackBrush" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#8CFFFFFF" />
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#BFFFFFFF" />
+    <SolidColorBrush x:Key="ScrollThumbDragBrush" Color="#F2FFFFFF" />
+
+    <!-- Paging areas of the track: clickable, but nothing to draw. -->
+    <Style x:Key="ScrollPageButton" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="Transparent" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ScrollThumb" TargetType="Thumb">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bar"
+                            Margin="2"
+                            Background="{StaticResource ScrollThumbBrush}"
+                            CornerRadius="{StaticResource ScrollThumbRadius}"
+                            SnapsToDevicePixels="True" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bar" Property="Background"
+                                    Value="{StaticResource ScrollThumbHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Bar" Property="Background"
+                                    Value="{StaticResource ScrollThumbDragBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Floors how small the thumb may get. Track ignores Thumb.MinHeight — set to
+        120 it changed nothing — so the floor is applied to the viewport size the
+        bar is handed instead, which is what the thumb is sized from.
+    -->
+    <b:MinimumThumbConverter x:Key="MinimumThumb" />
+
+    <Style x:Key="LayoutScrollBar" TargetType="ScrollBar">
+        <Setter Property="Background" Value="{StaticResource ScrollTrackBrush}" />
+        <Setter Property="Width" Value="10" />
+        <Setter Property="MinWidth" Value="10" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource ScrollTrackRadius}"
+                            SnapsToDevicePixels="True">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ScrollThumb}" />
+                            </Track.Thumb>
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand"
+                                              Style="{StaticResource ScrollPageButton}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand"
+                                              Style="{StaticResource ScrollPageButton}" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Height" Value="10" />
+                <Setter Property="MinHeight" Value="10" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="{StaticResource ScrollTrackRadius}"
+                                    SnapsToDevicePixels="True">
+                                <Track x:Name="PART_Track">
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollThumb}" />
+                                    </Track.Thumb>
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageLeftCommand"
+                                                      Style="{StaticResource ScrollPageButton}" />
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageRightCommand"
+                                                      Style="{StaticResource ScrollPageButton}" />
+                                    </Track.IncreaseRepeatButton>
+                                </Track>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        The viewer the reader scrolls with. Its bars are named to the two grid
+        tracks and given the style above explicitly — an implicit ScrollBar style
+        never reaches inside another control's template, which is why the bars
+        have to be created here rather than left to the stock viewer.
+
+        PART_ScrollContentPresenter is not decoration: the ScrollViewer finds its
+        scroll info by that name, and without it nothing scrolls and no bar
+        appears at all.
+
+        Value is a one-way Binding rather than a TemplateBinding because the
+        ScrollViewer drives the bars itself, and a two-way path would fight it.
+    -->
+    <Style x:Key="LayoutScrollViewer" TargetType="ScrollViewer">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <Grid Background="{TemplateBinding Background}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <ScrollContentPresenter
+                            x:Name="PART_ScrollContentPresenter"
+                            Grid.Row="0" Grid.Column="0"
+                            Margin="{TemplateBinding Padding}"
+                            CanContentScroll="{TemplateBinding CanContentScroll}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+
+                        <ScrollBar
+                            x:Name="PART_VerticalScrollBar"
+                            Grid.Row="0" Grid.Column="1"
+                            Margin="1,1,1,0"
+                            Style="{StaticResource LayoutScrollBar}"
+                            Orientation="Vertical"
+                            Minimum="0"
+                            Maximum="{TemplateBinding ScrollableHeight}"
+                            Value="{Binding VerticalOffset, Mode=OneWay,
+                                RelativeSource={RelativeSource TemplatedParent}}"
+                            Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}">
+                            <ScrollBar.ViewportSize>
+                                <MultiBinding Converter="{StaticResource MinimumThumb}">
+                                    <Binding Path="ViewportHeight"
+                                             RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="ScrollableHeight"
+                                             RelativeSource="{RelativeSource TemplatedParent}" />
+                                </MultiBinding>
+                            </ScrollBar.ViewportSize>
+                        </ScrollBar>
+
+                        <ScrollBar
+                            x:Name="PART_HorizontalScrollBar"
+                            Grid.Row="1" Grid.Column="0"
+                            Margin="1,1,0,1"
+                            Style="{StaticResource LayoutScrollBar}"
+                            Orientation="Horizontal"
+                            Minimum="0"
+                            Maximum="{TemplateBinding ScrollableWidth}"
+                            Value="{Binding HorizontalOffset, Mode=OneWay,
+                                RelativeSource={RelativeSource TemplatedParent}}"
+                            Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}">
+                            <ScrollBar.ViewportSize>
+                                <MultiBinding Converter="{StaticResource MinimumThumb}">
+                                    <Binding Path="ViewportWidth"
+                                             RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="ScrollableWidth"
+                                             RelativeSource="{RelativeSource TemplatedParent}" />
+                                </MultiBinding>
+                            </ScrollBar.ViewportSize>
+                        </ScrollBar>
+
+                        <!--
+                            The corner where the bars meet is left empty: each bar
+                            ends before it, so two rounded tracks never run into
+                            one another and neither is drawn over the content.
+                        -->
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

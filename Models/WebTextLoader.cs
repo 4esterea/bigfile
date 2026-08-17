@@ -1,7 +1,7 @@
 using System.IO;
 using System.Net.Http;
 
-namespace Warhorse.Models;
+namespace Bigfile.Models;
 
 /// <summary>
 /// Downloads a URL into a temporary file and opens it as a document, so the
@@ -9,10 +9,19 @@ namespace Warhorse.Models;
 /// </summary>
 public static class WebTextLoader
 {
+    /// <summary>
+    /// The client's own timeout covers reading the body as well, so a download
+    /// large enough to be worth this viewer would fail on the clock rather than
+    /// on anything being wrong. Length is bounded by cancellation instead — the
+    /// overlay's Cancel button — and stalls by the per-read timeout below.
+    /// </summary>
     private static readonly HttpClient Client = new()
     {
-        Timeout = TimeSpan.FromMinutes(10)
+        Timeout = Timeout.InfiniteTimeSpan
     };
+
+    /// <summary>How long a single read may stall before the download gives up.</summary>
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromMinutes(2);
 
     private const int CopyBufferSize = 1 << 20;
 
@@ -47,7 +56,7 @@ public static class WebTextLoader
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"warhorse-{Guid.NewGuid():N}.tmp");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"Bigfile-{Guid.NewGuid():N}.tmp");
 
         try
         {
@@ -69,10 +78,35 @@ public static class WebTextLoader
         IProgress<double>? progress,
         CancellationToken cancellationToken)
     {
-        using var response = await Client.GetAsync(
-            uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        using var headers = WithReadTimeout(cancellationToken);
 
+        HttpResponseMessage response;
+
+        try
+        {
+            response = await Client.GetAsync(
+                uri, HttpCompletionOption.ResponseHeadersRead, headers.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new IOException(
+                $"The server did not answer within {ReadTimeout.TotalMinutes:N0} minutes.");
+        }
+
+        using (response)
+        {
+            response.EnsureSuccessStatusCode();
+            await CopyAsync(response, path, progress, cancellationToken);
+        }
+    }
+
+    /// <summary>Streams the response body to disk, a megabyte at a time.</summary>
+    private static async Task CopyAsync(
+        HttpResponseMessage response,
+        string path,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
         var total = response.Content.Headers.ContentLength;
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -82,10 +116,30 @@ public static class WebTextLoader
 
         var buffer = new byte[CopyBufferSize];
         long copied = 0;
-        int read;
 
-        while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+        while (true)
         {
+            // Each read gets its own deadline, so a server that stops sending is
+            // given up on while a download that is merely long is not.
+            using var reading = WithReadTimeout(cancellationToken);
+
+            int read;
+
+            try
+            {
+                read = await source.ReadAsync(buffer, reading.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new IOException(
+                    $"The download stalled for over {ReadTimeout.TotalMinutes:N0} minutes.");
+            }
+
+            if (read == 0)
+            {
+                break;
+            }
+
             await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             copied += read;
 
@@ -97,6 +151,17 @@ public static class WebTextLoader
         }
 
         progress?.Report(1);
+    }
+
+    /// <summary>
+    /// The caller's cancellation plus a deadline of its own, so a stalled
+    /// transfer is distinguishable from one the user cancelled.
+    /// </summary>
+    private static CancellationTokenSource WithReadTimeout(CancellationToken cancellationToken)
+    {
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(ReadTimeout);
+        return cts;
     }
 
     /// <summary>Maps a 0..1 progress report onto the given sub-range.</summary>

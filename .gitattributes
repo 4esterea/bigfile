@@ -1,0 +1,9 @@
+# Text files are stored with LF and checked out with the platform's endings, so
+# a clone on Windows and one on anything else produce the same working tree.
+* text=auto
+
+*.cs      text diff=csharp
+*.xaml    text
+*.csproj  text
+*.slnx    text
+*.md      text

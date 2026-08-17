@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Warhorse.ViewModels;
+namespace Bigfile.ViewModels;
 
 /// <summary>
 /// Base class for all ViewModels.

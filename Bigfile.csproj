@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Bigfile</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Shown by the shell in the file's Details tab, and baked into the
+         assembly, so a published exe on its own still says what it is. -->
+    <Version>1.0.0</Version>
+    <Product>Text Reader</Product>
+    <AssemblyTitle>Text Reader</AssemblyTitle>
+    <Description>A reader for very large text files.</Description>
+    <Copyright>Copyright © 2026</Copyright>
+    <!-- The published build carries no other language, so the control library's
+         translations are dead weight in it. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The test project sits in a subdirectory of this one, and the SDK globs
+         every .cs below the project file — including, without this, the tests. -->
+    <Compile Remove="Bigfile.Tests\**" />
+    <None Remove="Bigfile.Tests\**" />
+  </ItemGroup>
+
+</Project>

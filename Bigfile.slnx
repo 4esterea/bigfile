@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Bigfile.csproj" />
+  <Project Path="Bigfile.Tests/Bigfile.Tests.csproj" />
+</Solution>

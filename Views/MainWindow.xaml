@@ -1,8 +1,9 @@
-<ui:FluentWindow x:Class="Warhorse.Views.MainWindow"
+<ui:FluentWindow x:Class="Bigfile.Views.MainWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 xmlns:vm="clr-namespace:Warhorse.ViewModels"
+                 xmlns:vm="clr-namespace:Bigfile.ViewModels"
+                 xmlns:b="clr-namespace:Bigfile.Behaviors"
                  Title="Text Reader" Height="500" Width="800"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
@@ -17,13 +18,39 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </ui:FluentWindow.Resources>
 
+    <!-- Window scope, so the search keys work wherever the focus sits. -->
+    <ui:FluentWindow.InputBindings>
+        <KeyBinding Key="F" Modifiers="Ctrl" Command="{Binding OpenSearchCommand}" />
+        <KeyBinding Key="F3" Command="{Binding FindNextCommand}" />
+        <KeyBinding Key="F3" Modifiers="Shift" Command="{Binding FindPreviousCommand}" />
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding CloseSearchCommand}" />
+    </ui:FluentWindow.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Text Reader" />
+        <!--
+            The rule under the bar separates the window's own chrome — the
+            application name and the caption buttons — from the document below
+            it; without it the two run together on the same backdrop.
+
+            The height is pinned to what the caption buttons are actually drawn
+            at, 30, not to the 32 Windows nominally uses: left to size itself the
+            bar grew around the icon and dropped the title below the buttons'
+            centre line, while at 32 it left two pixels under them, so their
+            hover fill stopped short of the rule.
+        -->
+        <Border Grid.Row="0" BorderBrush="#26FFFFFF" BorderThickness="0,0,0,1">
+            <ui:TitleBar Title="Text Reader" Height="30">
+                <ui:TitleBar.Icon>
+                    <ui:SymbolIcon Symbol="CodeText20" FontSize="16" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+        </Border>
 
         <!-- Start screen: pick a text source -->
         <StackPanel x:Name="StartButtons" Grid.Row="1" Orientation="Horizontal"
@@ -61,16 +88,22 @@
         </StackPanel>
 
         <!-- Reader: shown once a source is loaded -->
-        <Grid Grid.Row="1" Margin="16,0,16,16"
+        <Grid Grid.Row="1" Margin="8,0,8,8"
               Visibility="{Binding HasText, Converter={StaticResource BoolToVisibility}}">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,12">
+            <!-- Indented from the edge so the source name is not flush against it. -->
+            <DockPanel Grid.Row="0" Margin="8,12,4,12">
                 <ui:Button DockPanel.Dock="Right" Icon="{ui:SymbolIcon Dismiss24}"
                            Content="Close" Command="{Binding CloseCommand}" />
+                <ui:Button DockPanel.Dock="Right" Margin="0,0,8,0"
+                           Icon="{ui:SymbolIcon Save24}"
+                           Content="Save" ToolTip="Save the shown text (Ctrl+S)"
+                           Command="{Binding SaveCommand}" />
                 <ui:TextBlock DockPanel.Dock="Right" Margin="0,0,12,0"
                               Text="{Binding LineCount, StringFormat={}{0:N0} lines}"
                               Appearance="Secondary" VerticalAlignment="Center" />
@@ -78,22 +111,105 @@
                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             </DockPanel>
 
+            <!-- Search bar: Ctrl+F opens it, Esc closes it. -->
+            <DockPanel Grid.Row="1" Margin="0,0,0,12"
+                       Visibility="{Binding IsSearchOpen, Converter={StaticResource BoolToVisibility}}">
+                <ui:Button DockPanel.Dock="Right" Margin="4,0,0,0"
+                           Icon="{ui:SymbolIcon Dismiss24}"
+                           ToolTip="Close (Esc)"
+                           Command="{Binding CloseSearchCommand}" />
+                <ui:Button DockPanel.Dock="Right" Margin="4,0,0,0"
+                           Icon="{ui:SymbolIcon ChevronDown24}"
+                           ToolTip="Next match (F3)"
+                           Command="{Binding FindNextCommand}" />
+                <ui:Button DockPanel.Dock="Right" Margin="4,0,0,0"
+                           Icon="{ui:SymbolIcon ChevronUp24}"
+                           ToolTip="Previous match (Shift+F3)"
+                           Command="{Binding FindPreviousCommand}" />
+                <ToggleButton DockPanel.Dock="Right" Margin="8,0,0,0"
+                              IsChecked="{Binding IsFilterActive, Mode=OneWay}"
+                              ToolTip="Show only matching lines"
+                              Command="{Binding ToggleFilterCommand}">
+                    <ui:SymbolIcon Symbol="Filter24" />
+                </ToggleButton>
+                <ui:TextBlock DockPanel.Dock="Right" Margin="12,0,0,0"
+                              Text="{Binding SearchStatus}"
+                              ToolTip="{Binding SearchHint}"
+                              Appearance="Secondary" VerticalAlignment="Center" />
+
+                <ui:TextBox x:Name="SearchTextBox"
+                            Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="Find"
+                            Icon="{ui:SymbolIcon Search24}">
+                    <ui:TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding FindNextCommand}" />
+                        <KeyBinding Key="Enter" Modifiers="Shift"
+                                    Command="{Binding FindPreviousCommand}" />
+                    </ui:TextBox.InputBindings>
+                </ui:TextBox>
+            </DockPanel>
+
             <!--
                 Item virtualization keeps only the visible lines realized, and the
                 bound list reads those lines from disk, so GUI memory is independent
                 of document size. Pixel scroll unit keeps dragging the scrollbar and
                 PgUp/PgDn smooth instead of snapping line by line.
+
+                SelectedIndex is the search cursor as well as the visible marker of
+                the current match, which is why it is bound two-way.
             -->
-            <ListBox Grid.Row="1" ItemsSource="{Binding Lines}"
+            <!--
+                The reader is given the same surface and stroke as the prompt
+                cards, so the text sits on a panel of its own instead of bleeding
+                into the window behind it — over a Mica backdrop there is
+                otherwise nothing to mark where the header ends and the text
+                begins.
+            -->
+            <ListBox x:Name="LinesList" Grid.Row="2" ItemsSource="{Binding Lines}"
+                     SelectedIndex="{Binding SelectedLine, Mode=TwoWay}"
+                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                     BorderBrush="#33FFFFFF"
+                     BorderThickness="1"
+                     Padding="2"
+                     PreviewKeyDown="LinesList_PreviewKeyDown"
+                     PreviewMouseWheel="LinesList_PreviewMouseWheel"
+                     IsVisibleChanged="LinesList_IsVisibleChanged"
                      FontFamily="Consolas" FontSize="13"
                      HorizontalContentAlignment="Stretch"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling"
                      VirtualizingPanel.ScrollUnit="Pixel"
-                     VirtualizingPanel.CacheLength="1"
+                     VirtualizingPanel.CacheLength="2"
                      VirtualizingPanel.CacheLengthUnit="Page"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                      ScrollViewer.VerticalScrollBarVisibility="Visible">
+                <!--
+                    The reader carries its own template because the Fluent one
+                    scrolls with a DynamicScrollViewer: bars that float over the
+                    text and fade out when the pointer leaves. For a reader that
+                    is wrong twice over — they cover the lines they scroll, and
+                    the horizontal bar, the only sign that a line runs past the
+                    right edge, is invisible almost always. Here the scroll viewer
+                    is a plain one styled to lay its bars out beside the content.
+                -->
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer Focusable="False"
+                                          Style="{StaticResource LayoutScrollViewer}"
+                                          Padding="{TemplateBinding Padding}"
+                                          CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}"
+                                          HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </ListBox.Template>
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <VirtualizingStackPanel />
@@ -109,7 +225,20 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding Mode=OneTime}" TextWrapping="NoWrap" />
+                        <!--
+                            Current/IsCurrent together mark the one occurrence the
+                            reader is standing on: every line is handed the same
+                            offset, and only the selected one — which is where a
+                            match always lands — honours it.
+                        -->
+                        <TextBlock TextWrapping="NoWrap"
+                                   b:Highlight.Text="{Binding Mode=OneTime}"
+                                   b:Highlight.Query="{Binding DataContext.SearchQuery,
+                                       RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                   b:Highlight.Current="{Binding DataContext.MatchColumn,
+                                       RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                   b:Highlight.IsCurrent="{Binding IsSelected,
+                                       RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
@@ -148,15 +277,76 @@
             </ui:Card>
         </Border>
 
-        <!-- Loading overlay -->
+        <!-- Inline prompt for the size of a generated document -->
+        <Border Grid.Row="1" Background="#80000000"
+                Visibility="{Binding IsRandomPromptOpen, Converter={StaticResource BoolToVisibility}}">
+            <ui:Card Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <ui:TextBlock Text="How many lines to generate"
+                                  FontTypography="BodyStrong" Margin="0,0,0,8" />
+
+                    <ui:NumberBox x:Name="RandomLineBox"
+                                  Value="{Binding RandomLineInput, UpdateSourceTrigger=PropertyChanged}"
+                                  Minimum="1" Maximum="100000000"
+                                  MaxDecimalPlaces="0"
+                                  SpinButtonPlacementMode="Hidden"
+                                  ClearButtonEnabled="False"
+                                  IsVisibleChanged="RandomLineBox_IsVisibleChanged">
+                        <ui:NumberBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SubmitRandomCommand}" />
+                            <KeyBinding Key="Esc" Command="{Binding CancelRandomPromptCommand}" />
+                        </ui:NumberBox.InputBindings>
+                    </ui:NumberBox>
+
+                    <ui:TextBlock Text="{Binding RandomLineRange, Mode=OneTime}"
+                                  Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                  Margin="0,8,0,0"
+                                  Visibility="{Binding HasRandomError, Converter={StaticResource BoolToVisibility}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                        <ui:Button Content="Generate" Appearance="Primary" Width="90"
+                                   Command="{Binding SubmitRandomCommand}" />
+                        <ui:Button Content="Cancel" Width="90" Margin="8,0,0,0"
+                                   Command="{Binding CancelRandomPromptCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </ui:Card>
+        </Border>
+
+        <!--
+            Loading overlay. Like the prompts, it sits on a card: over the start
+            screen or the text, a bare ring and a line of status would read as
+            part of whatever is underneath rather than as something on top.
+        -->
         <Border Grid.Row="1" Background="#80000000"
                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <ui:ProgressRing Progress="{Binding ProgressPercent}"
-                                 HorizontalAlignment="Center" />
-                <ui:TextBlock Text="{Binding ProgressPercent, StringFormat={}Indexing… {0:N0}%}"
-                              Margin="0,12,0,0" HorizontalAlignment="Center" />
-            </StackPanel>
+            <!--
+                Opaque, and fixed in size: translucency would let the buttons
+                underneath read through the status text, and a card that sized
+                itself to its content would breathe as the percentage goes from
+                one digit to three.
+            -->
+            <Border Width="260" Height="200"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="#FF21212B"
+                    BorderBrush="#33FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ui:ProgressRing Progress="{Binding ProgressPercent}"
+                                     HorizontalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0"
+                                HorizontalAlignment="Center">
+                        <ui:TextBlock Text="{Binding BusyMessage}" />
+                        <ui:TextBlock Text="{Binding ProgressPercent, StringFormat={}… {0:N0}%}" />
+                    </StackPanel>
+
+                    <!-- Indexing tens of gigabytes takes minutes; it has to be abandonable. -->
+                    <ui:Button Content="Cancel" Width="90" Margin="0,16,0,0"
+                               HorizontalAlignment="Center"
+                               Command="{Binding CancelBusyCommand}" />
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </ui:FluentWindow>

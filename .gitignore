@@ -1,2 +1,11 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+publish/
+# Release assets
+artifacts/
+
+# Tooling
 /.claude
-/obj/Debug/
+.vs/
+*.user
